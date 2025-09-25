@@ -5,9 +5,9 @@ import { CardSearch } from "@/components/card-search"
 // Custom sorting function for set names
 function customSetSort(sets: string[]): string[] {
   return [...sets].sort((a, b) => {
-    // Extract the base part (like "A1", "A2") and any suffix (like "a", "b")
-    const baseA = a.match(/([A-Z]+\d+)/i)?.[0] || a
-    const baseB = b.match(/([A-Z]+\d+)/i)?.[0] || b
+    // Extract the base part (like "A1", "A2", "A4a") and any suffix (like "a", "b")
+    const baseA = a.match(/([A-Z]+\d+[a-z]*)/i)?.[0] || a
+    const baseB = b.match(/([A-Z]+\d+[a-z]*)/i)?.[0] || b
 
     // Extract the numeric part from the base
     const numA = Number.parseInt(baseA.replace(/[^0-9]/g, "") || "0", 10)
@@ -58,17 +58,20 @@ export default async function CardsPage({
 
   const { data: cards } = await query.order("id")
 
-  // Get unique set names for filter
-  const { data: sets } = await supabase.from("cards").select("set_name")
+  // Get unique set names for filter - Force fresh data
+  const { data: sets } = await supabase.from("cards").select("set_name").not("set_name", "is", null)
 
   // Get unique rarity values for filter
-  const { data: raritiesData } = await supabase.from("cards").select("rarity")
+  const { data: raritiesData } = await supabase.from("cards").select("rarity").not("rarity", "is", null)
 
   // Remove duplicates and filter out null values
   const uniqueSets = [...new Set(sets?.map((card) => card.set_name).filter(Boolean) || [])]
 
   // Use custom sorting function for sets
   const sortedSets = customSetSort(uniqueSets)
+
+  // Debug: Log the sets to see if A4a is included
+  console.log("Available sets:", sortedSets)
 
   // Just get the unique rarities without ordering them
   const uniqueRarities = [...new Set(raritiesData?.map((card) => card.rarity).filter(Boolean) || [])]
@@ -81,3 +84,7 @@ export default async function CardsPage({
     </div>
   )
 }
+
+// Force dynamic rendering to avoid caching issues
+export const dynamic = "force-dynamic"
+export const revalidate = 0
