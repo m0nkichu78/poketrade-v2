@@ -76,14 +76,32 @@ export default async function CardsPage({
       (card) =>
         card.set_name?.includes("A4") ||
         card.set_name?.toLowerCase().includes("source") ||
-        card.set_name?.toLowerCase().includes("sagesse"),
+        card.set_name?.toLowerCase().includes("sagesse") ||
+        card.set_name?.toLowerCase().includes("secrète"),
     )
-    console.log("Cards with A4, Source, or Sagesse:", a4Sets)
+    console.log("Cards with A4, Source, Sagesse, or Secrète:", a4Sets)
+
+    // Search for any set containing "a4a" specifically
+    const a4aSets = allCards.filter(
+      (card) =>
+        card.set_name?.toLowerCase().includes("a4a") ||
+        card.set_name?.toLowerCase().includes("source secrète") ||
+        card.set_name?.toLowerCase().includes("source secrete"),
+    )
+    console.log("Cards specifically with A4a or Source Secrète:", a4aSets)
 
     // Show all unique set names
     const allSetNames = [...new Set(allCards.map((card) => card.set_name))].sort()
     console.log("All unique set names in database:", allSetNames)
   }
+
+  // Also search for cards that might have the set we're looking for
+  const { data: sourceCards, error: sourceError } = await supabase
+    .from("cards")
+    .select("id, set_name, name")
+    .or("set_name.ilike.%source%,set_name.ilike.%secrète%,set_name.ilike.%a4a%")
+
+  console.log("Cards with 'source', 'secrète', or 'a4a' in set_name:", sourceCards)
 
   // Get unique rarity values for filter
   const { data: raritiesData, error: raritiesError } = await supabase
@@ -101,7 +119,10 @@ export default async function CardsPage({
   // Check specifically for missing sets
   const targetSets = uniqueSets.filter(
     (set) =>
-      set.toLowerCase().includes("a4") || set.toLowerCase().includes("source") || set.toLowerCase().includes("sagesse"),
+      set.toLowerCase().includes("a4") ||
+      set.toLowerCase().includes("source") ||
+      set.toLowerCase().includes("sagesse") ||
+      set.toLowerCase().includes("secrète"),
   )
   console.log("Target sets found:", targetSets)
 
@@ -126,13 +147,14 @@ export default async function CardsPage({
         </p>
         <p>Total cards in database: {allCards?.length || 0}</p>
         <p>Total unique sets: {uniqueSets.length}</p>
-        <p>Sets containing "A4", "Source" or "Sagesse": {targetSets.join(", ") || "None found"}</p>
+        <p>Sets containing "A4", "Source", "Sagesse" or "Secrète": {targetSets.join(", ") || "None found"}</p>
+        <p>Cards with 'source', 'secrète', or 'a4a': {sourceCards?.length || 0}</p>
         <p>All sets: {sortedSets.join(", ")}</p>
 
-        {(allCardsError || raritiesError) && (
+        {(allCardsError || raritiesError || sourceError) && (
           <p className="text-red-600">
             Errors:{" "}
-            {[allCardsError, raritiesError]
+            {[allCardsError, raritiesError, sourceError]
               .filter(Boolean)
               .map((e) => e?.message)
               .join(", ")}
@@ -149,6 +171,21 @@ export default async function CardsPage({
             ))}
           </div>
         </details>
+
+        {sourceCards && sourceCards.length > 0 && (
+          <details className="mt-2">
+            <summary className="cursor-pointer font-medium">
+              Cards with 'source', 'secrète', or 'a4a' (click to expand)
+            </summary>
+            <div className="mt-2 text-xs bg-white p-2 rounded max-h-40 overflow-auto">
+              {sourceCards.map((card, index) => (
+                <div key={index} className="py-1 border-b border-gray-200 last:border-b-0">
+                  <strong>{card.set_name}</strong> - {card.name} (ID: {card.id})
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
       </div>
 
       <CardSearch sets={sortedSets} rarities={uniqueRarities} />
