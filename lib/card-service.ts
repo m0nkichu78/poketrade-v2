@@ -138,72 +138,37 @@ export const cardService = {
     }
   },
 
-  // Obtenir les ensembles uniques - CORRIGÉ pour éviter le cache
+  // Obtenir les ensembles uniques
   async getUniqueSets(): Promise<{ data: string[] | null; error: any }> {
     try {
-      // Forcer une nouvelle requête sans cache
-      const { data, error } = await supabase
-        .from("cards")
-        .select("set_name")
-        .not("set_name", "is", null)
-        .order("set_name")
-
-      if (error) {
-        console.error("Error fetching sets:", error)
-        return { data: null, error }
-      }
+      const { data, error } = await supabase.from("cards").select("set_name").order("set_name")
 
       if (data) {
-        // Extraire les sets uniques et les trier
-        const uniqueSets = [...new Set(data.map((card) => card.set_name).filter(Boolean))]
-        const sortedSets = uniqueSets.sort((a, b) => a.localeCompare(b))
-
-        console.log("Sets récupérés:", sortedSets) // Debug log
-        return { data: sortedSets, error: null }
+        const uniqueSets = [...new Set(data.map((card) => card.set_name))]
+        return { data: uniqueSets, error }
       }
 
-      return { data: [], error: null }
+      return { data: null, error }
     } catch (error) {
       console.error("Error fetching sets:", error)
       return { data: null, error }
     }
   },
 
-  // Obtenir les raretés uniques - CORRIGÉ pour éviter le cache
+  // Obtenir les raretés uniques
   async getUniqueRarities(): Promise<{ data: string[] | null; error: any }> {
     try {
-      // Forcer une nouvelle requête sans cache
-      const { data, error } = await supabase.from("cards").select("rarity").not("rarity", "is", null).order("rarity")
-
-      if (error) {
-        console.error("Error fetching rarities:", error)
-        return { data: null, error }
-      }
+      const { data, error } = await supabase.from("cards").select("rarity").order("rarity")
 
       if (data) {
-        // Extraire les raretés uniques et les trier
         const uniqueRarities = [...new Set(data.map((card) => card.rarity).filter(Boolean))]
-        const sortedRarities = uniqueRarities.sort((a, b) => a.localeCompare(b))
-
-        console.log("Raretés récupérées:", sortedRarities) // Debug log
-        return { data: sortedRarities, error: null }
+        return { data: uniqueRarities, error }
       }
 
-      return { data: [], error: null }
+      return { data: null, error }
     } catch (error) {
       console.error("Error fetching rarities:", error)
       return { data: null, error }
-    }
-  },
-
-  // Nouvelle méthode pour forcer le rafraîchissement du cache
-  async refreshCache(): Promise<void> {
-    try {
-      // Cette méthode peut être appelée après l'ajout de nouvelles cartes
-      // pour s'assurer que les filtres sont à jour
-      await Promise.all([this.getUniqueSets(), this.getUniqueRarities()])
-    } catch (error) {
-      console.error("Error refreshing cache:", error)
     }
   },
 }
