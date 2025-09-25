@@ -58,15 +58,18 @@ export default async function CardsPage({
 
   const { data: cards } = await query.order("id")
 
-  // Get unique set names for filter - Use a more direct approach
-  const { data: setsData, error: setsError } = await supabase
-    .from("cards")
-    .select("set_name")
-    .not("set_name", "is", null)
+  // Get ALL unique set names - Remove the 1000 limit by using .range() or getting all data
+  console.log("=== FETCHING ALL SETS (NO LIMIT) ===")
 
-  console.log("=== DETAILED SETS DEBUG ===")
+  const {
+    data: setsData,
+    error: setsError,
+    count,
+  } = await supabase.from("cards").select("set_name", { count: "exact" }).not("set_name", "is", null).range(0, 2000) // Get up to 2000 entries to be safe
+
   console.log("Sets query error:", setsError)
-  console.log("Raw sets data count:", setsData?.length)
+  console.log("Total count in database:", count)
+  console.log("Raw sets data retrieved:", setsData?.length)
 
   // Let's examine the first 20 set names to see what we're getting
   const first20Sets = setsData?.slice(0, 20).map((item) => item.set_name)
@@ -77,11 +80,12 @@ export default async function CardsPage({
   console.log("Raw entries containing 'Source':", sourceSecreteEntries?.length)
   console.log("Sample Source entries:", sourceSecreteEntries?.slice(0, 5))
 
-  // Get unique rarity values for filter
+  // Get unique rarity values for filter - also remove limit
   const { data: raritiesData, error: raritiesError } = await supabase
     .from("cards")
     .select("rarity")
     .not("rarity", "is", null)
+    .range(0, 2000)
 
   // Extract unique sets - Let's debug this step by step
   console.log("=== UNIQUE SETS EXTRACTION DEBUG ===")
@@ -99,12 +103,6 @@ export default async function CardsPage({
   // Check if Source Secrète is in the unique sets
   const hasSourceSecrete = uniqueSetNames.some((set) => set.includes("Source"))
   console.log("Source found in unique sets:", hasSourceSecrete)
-
-  // If Source Secrète is missing, let's manually add it for debugging
-  if (!hasSourceSecrete && sourceSecreteEntries && sourceSecreteEntries.length > 0) {
-    console.log("MANUALLY ADDING Source Secrète (A4a) to unique sets")
-    uniqueSetNames.push("Source Secrète (A4a)")
-  }
 
   // Use custom sorting function for sets
   const sortedSets = customSetSort(uniqueSetNames)
@@ -125,7 +123,8 @@ export default async function CardsPage({
         <p>
           <strong>Debug Info:</strong>
         </p>
-        <p>Raw sets data count: {setsData?.length || 0}</p>
+        <p>Total count in database: {count || "Unknown"}</p>
+        <p>Raw sets data retrieved: {setsData?.length || 0}</p>
         <p>All set names count: {allSetNames.length}</p>
         <p>Filtered set names count: {filteredSetNames.length}</p>
         <p>Total unique sets: {uniqueSetNames.length}</p>
