@@ -58,45 +58,32 @@ export default async function CardsPage({
 
   const { data: cards } = await query.order("id")
 
-  // Try multiple approaches to get all sets
   console.log("=== DEBUGGING SETS RETRIEVAL ===")
 
-  // Approach 1: Get all distinct set_name values
-  const { data: setsData1, error: setsError1 } = await supabase
-    .from("cards")
-    .select("set_name")
-    .not("set_name", "is", null)
-
-  console.log("Approach 1 - All set_name values:")
-  console.log("Error:", setsError1)
-  console.log("Count:", setsData1?.length)
-  console.log("Sample data:", setsData1?.slice(0, 10))
-
-  // Approach 2: Get all cards and extract set names
+  // Get all cards with their set names
   const { data: allCards, error: allCardsError } = await supabase
     .from("cards")
     .select("id, set_name")
     .not("set_name", "is", null)
 
-  console.log("Approach 2 - All cards with set_name:")
+  console.log("All cards query:")
   console.log("Error:", allCardsError)
   console.log("Count:", allCards?.length)
 
-  // Check for specific sets
-  const a4Sets = allCards?.filter(
-    (card) => card.set_name?.includes("A4") || card.set_name?.includes("Source") || card.set_name?.includes("Sagesse"),
-  )
-  console.log("Cards with A4, Source, or Sagesse:", a4Sets)
+  if (allCards && allCards.length > 0) {
+    // Check for specific sets we're looking for
+    const a4Sets = allCards.filter(
+      (card) =>
+        card.set_name?.includes("A4") ||
+        card.set_name?.toLowerCase().includes("source") ||
+        card.set_name?.toLowerCase().includes("sagesse"),
+    )
+    console.log("Cards with A4, Source, or Sagesse:", a4Sets)
 
-  // Approach 3: Raw SQL query to get distinct set names
-  const { data: distinctSets, error: distinctError } = await supabase.rpc("get_distinct_sets").catch(async () => {
-    // Fallback if RPC doesn't exist
-    return await supabase.from("cards").select("set_name").not("set_name", "is", null)
-  })
-
-  console.log("Approach 3 - Distinct sets:")
-  console.log("Error:", distinctError)
-  console.log("Data:", distinctSets)
+    // Show all unique set names
+    const allSetNames = [...new Set(allCards.map((card) => card.set_name))].sort()
+    console.log("All unique set names in database:", allSetNames)
+  }
 
   // Get unique rarity values for filter
   const { data: raritiesData, error: raritiesError } = await supabase
@@ -104,20 +91,10 @@ export default async function CardsPage({
     .select("rarity")
     .not("rarity", "is", null)
 
-  // Use the most comprehensive data source
-  const rawSets = allCards || setsData1 || []
-
-  // Remove duplicates and filter out null/empty values
-  const uniqueSets = [
-    ...new Set(
-      rawSets
-        .map((item) => {
-          const setName = "set_name" in item ? item.set_name : item
-          return setName
-        })
-        .filter((name) => name && name.trim() !== ""),
-    ),
-  ]
+  // Extract unique sets from all cards
+  const uniqueSets = allCards
+    ? [...new Set(allCards.map((card) => card.set_name).filter((name) => name && name.trim() !== ""))]
+    : []
 
   console.log("Final unique sets:", uniqueSets)
 
@@ -134,9 +111,9 @@ export default async function CardsPage({
   console.log("Final sorted sets:", sortedSets)
 
   // Just get the unique rarities
-  const uniqueRarities = [
-    ...new Set(raritiesData?.map((card) => card.rarity).filter((rarity) => rarity && rarity.trim() !== "") || []),
-  ]
+  const uniqueRarities = raritiesData
+    ? [...new Set(raritiesData.map((card) => card.rarity).filter((rarity) => rarity && rarity.trim() !== ""))]
+    : []
 
   return (
     <div className="container py-8">
@@ -151,28 +128,26 @@ export default async function CardsPage({
         <p>Total unique sets: {uniqueSets.length}</p>
         <p>Sets containing "A4", "Source" or "Sagesse": {targetSets.join(", ") || "None found"}</p>
         <p>All sets: {sortedSets.join(", ")}</p>
-        {(setsError1 || allCardsError || raritiesError) && (
+
+        {(allCardsError || raritiesError) && (
           <p className="text-red-600">
             Errors:{" "}
-            {[setsError1, allCardsError, raritiesError]
+            {[allCardsError, raritiesError]
               .filter(Boolean)
               .map((e) => e?.message)
               .join(", ")}
           </p>
         )}
+
         <details className="mt-2">
-          <summary className="cursor-pointer font-medium">Raw data (click to expand)</summary>
-          <pre className="mt-2 text-xs bg-white p-2 rounded overflow-auto max-h-40">
-            {JSON.stringify(
-              {
-                uniqueSets,
-                sampleCards: allCards?.slice(0, 5),
-                a4Cards: a4Sets,
-              },
-              null,
-              2,
-            )}
-          </pre>
+          <summary className="cursor-pointer font-medium">All sets in database (click to expand)</summary>
+          <div className="mt-2 text-xs bg-white p-2 rounded max-h-40 overflow-auto">
+            {uniqueSets.map((set, index) => (
+              <div key={index} className="py-1 border-b border-gray-200 last:border-b-0">
+                {set}
+              </div>
+            ))}
+          </div>
         </details>
       </div>
 
