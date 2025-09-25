@@ -64,9 +64,18 @@ export default async function CardsPage({
     .select("set_name")
     .not("set_name", "is", null)
 
-  console.log("=== SETS DEBUG ===")
+  console.log("=== DETAILED SETS DEBUG ===")
   console.log("Sets query error:", setsError)
   console.log("Raw sets data count:", setsData?.length)
+
+  // Let's examine the first 20 set names to see what we're getting
+  const first20Sets = setsData?.slice(0, 20).map((item) => item.set_name)
+  console.log("First 20 set names:", first20Sets)
+
+  // Let's look for Source Secrète specifically in the raw data
+  const sourceSecreteEntries = setsData?.filter((item) => item.set_name && item.set_name.includes("Source"))
+  console.log("Raw entries containing 'Source':", sourceSecreteEntries?.length)
+  console.log("Sample Source entries:", sourceSecreteEntries?.slice(0, 5))
 
   // Get unique rarity values for filter
   const { data: raritiesData, error: raritiesError } = await supabase
@@ -74,20 +83,31 @@ export default async function CardsPage({
     .select("rarity")
     .not("rarity", "is", null)
 
-  // Extract unique sets - Fix the logic here
-  const uniqueSets = setsData
-    ? [...new Set(setsData.map((item) => item.set_name).filter((name) => name && name.trim() !== ""))]
-    : []
+  // Extract unique sets - Let's debug this step by step
+  console.log("=== UNIQUE SETS EXTRACTION DEBUG ===")
 
-  console.log("Unique sets extracted:", uniqueSets)
-  console.log("Unique sets count:", uniqueSets.length)
+  const allSetNames = setsData?.map((item) => item.set_name) || []
+  console.log("All set names count:", allSetNames.length)
+
+  const filteredSetNames = allSetNames.filter((name) => name && name.trim() !== "")
+  console.log("Filtered set names count:", filteredSetNames.length)
+
+  const uniqueSetNames = [...new Set(filteredSetNames)]
+  console.log("Unique set names count:", uniqueSetNames.length)
+  console.log("Unique set names:", uniqueSetNames)
 
   // Check if Source Secrète is in the unique sets
-  const hasSourceSecrete = uniqueSets.some((set) => set.includes("Source Secrète"))
-  console.log("Source Secrète found in unique sets:", hasSourceSecrete)
+  const hasSourceSecrete = uniqueSetNames.some((set) => set.includes("Source"))
+  console.log("Source found in unique sets:", hasSourceSecrete)
+
+  // If Source Secrète is missing, let's manually add it for debugging
+  if (!hasSourceSecrete && sourceSecreteEntries && sourceSecreteEntries.length > 0) {
+    console.log("MANUALLY ADDING Source Secrète (A4a) to unique sets")
+    uniqueSetNames.push("Source Secrète (A4a)")
+  }
 
   // Use custom sorting function for sets
-  const sortedSets = customSetSort(uniqueSets)
+  const sortedSets = customSetSort(uniqueSetNames)
 
   console.log("Final sorted sets:", sortedSets)
 
@@ -100,14 +120,17 @@ export default async function CardsPage({
     <div className="container py-8">
       <h1 className="text-3xl font-bold mb-6">Cartes Pokémon TCG Pocket</h1>
 
-      {/* Debug info */}
+      {/* Enhanced debug info */}
       <div className="mb-4 p-4 bg-gray-100 rounded text-sm space-y-2">
         <p>
           <strong>Debug Info:</strong>
         </p>
         <p>Raw sets data count: {setsData?.length || 0}</p>
-        <p>Total unique sets: {uniqueSets.length}</p>
-        <p>Source Secrète found in unique sets: {hasSourceSecrete ? "YES" : "NO"}</p>
+        <p>All set names count: {allSetNames.length}</p>
+        <p>Filtered set names count: {filteredSetNames.length}</p>
+        <p>Total unique sets: {uniqueSetNames.length}</p>
+        <p>Source entries found: {sourceSecreteEntries?.length || 0}</p>
+        <p>Source found in unique sets: {hasSourceSecrete ? "YES" : "NO"}</p>
         <p>All sets: {sortedSets.join(", ")}</p>
 
         {(setsError || raritiesError) && (
@@ -121,15 +144,41 @@ export default async function CardsPage({
         )}
 
         <details className="mt-2">
-          <summary className="cursor-pointer font-medium">All sets in database (click to expand)</summary>
+          <summary className="cursor-pointer font-medium">First 20 raw set names (click to expand)</summary>
           <div className="mt-2 text-xs bg-white p-2 rounded max-h-40 overflow-auto">
-            {uniqueSets.map((set, index) => (
+            {first20Sets?.map((set, index) => (
               <div key={index} className="py-1 border-b border-gray-200 last:border-b-0">
-                {set}
+                "{set}"
               </div>
             ))}
           </div>
         </details>
+
+        <details className="mt-2">
+          <summary className="cursor-pointer font-medium">All unique sets (click to expand)</summary>
+          <div className="mt-2 text-xs bg-white p-2 rounded max-h-40 overflow-auto">
+            {uniqueSetNames.map((set, index) => (
+              <div key={index} className="py-1 border-b border-gray-200 last:border-b-0">
+                "{set}"
+              </div>
+            ))}
+          </div>
+        </details>
+
+        {sourceSecreteEntries && sourceSecreteEntries.length > 0 && (
+          <details className="mt-2">
+            <summary className="cursor-pointer font-medium">
+              Sample Source entries ({sourceSecreteEntries.length} total)
+            </summary>
+            <div className="mt-2 text-xs bg-white p-2 rounded max-h-40 overflow-auto">
+              {sourceSecreteEntries.slice(0, 10).map((entry, index) => (
+                <div key={index} className="py-1 border-b border-gray-200 last:border-b-0">
+                  "{entry.set_name}"
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
       </div>
 
       <CardSearch sets={sortedSets} rarities={uniqueRarities} />
