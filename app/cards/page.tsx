@@ -58,27 +58,66 @@ export default async function CardsPage({
 
   const { data: cards } = await query.order("id")
 
-  // Get unique set names for filter - Force fresh data
-  const { data: sets } = await supabase.from("cards").select("set_name").not("set_name", "is", null)
+  // Get unique set names for filter - Force fresh data with explicit query
+  const { data: setsData, error: setsError } = await supabase
+    .from("cards")
+    .select("set_name")
+    .not("set_name", "is", null)
+    .order("set_name")
 
   // Get unique rarity values for filter
-  const { data: raritiesData } = await supabase.from("cards").select("rarity").not("rarity", "is", null)
+  const { data: raritiesData, error: raritiesError } = await supabase
+    .from("cards")
+    .select("rarity")
+    .not("rarity", "is", null)
+    .order("rarity")
 
-  // Remove duplicates and filter out null values
-  const uniqueSets = [...new Set(sets?.map((card) => card.set_name).filter(Boolean) || [])]
+  // Debug logging
+  console.log("Sets query error:", setsError)
+  console.log("Raw sets data (first 20):", setsData?.slice(0, 20))
+  console.log("Total sets found:", setsData?.length)
+
+  // Remove duplicates and filter out null/empty values
+  const uniqueSets = [
+    ...new Set(setsData?.map((card) => card.set_name).filter((name) => name && name.trim() !== "") || []),
+  ]
+
+  console.log("Unique sets before sorting:", uniqueSets)
+
+  // Check specifically for A4a or Source
+  const targetSets = uniqueSets.filter(
+    (set) =>
+      set.toLowerCase().includes("a4a") ||
+      set.toLowerCase().includes("source") ||
+      set.toLowerCase().includes("secrète"),
+  )
+  console.log("Target sets found:", targetSets)
 
   // Use custom sorting function for sets
   const sortedSets = customSetSort(uniqueSets)
 
-  // Debug: Log the sets to see if A4a is included
-  console.log("Available sets:", sortedSets)
+  console.log("Final sorted sets:", sortedSets)
 
   // Just get the unique rarities without ordering them
-  const uniqueRarities = [...new Set(raritiesData?.map((card) => card.rarity).filter(Boolean) || [])]
+  const uniqueRarities = [
+    ...new Set(raritiesData?.map((card) => card.rarity).filter((rarity) => rarity && rarity.trim() !== "") || []),
+  ]
 
   return (
     <div className="container py-8">
       <h1 className="text-3xl font-bold mb-6">Cartes Pokémon TCG Pocket</h1>
+
+      {/* Debug info visible on page */}
+      <div className="mb-4 p-4 bg-gray-100 rounded text-sm">
+        <p>
+          <strong>Debug Info:</strong>
+        </p>
+        <p>Total unique sets: {uniqueSets.length}</p>
+        <p>Sets containing "A4a", "Source" or "Secrète": {targetSets.join(", ") || "None found"}</p>
+        <p>All sets: {sortedSets.slice(0, 10).join(", ")}...</p>
+        {setsError && <p className="text-red-600">Error: {setsError.message}</p>}
+      </div>
+
       <CardSearch sets={sortedSets} rarities={uniqueRarities} />
       <CardGrid cards={cards || []} />
     </div>
