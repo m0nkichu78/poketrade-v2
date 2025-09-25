@@ -27,6 +27,42 @@ function customSetSort(sets: string[]): string[] {
   })
 }
 
+// Function to get all data from Supabase without pagination limits
+async function getAllSets(supabase: any) {
+  let allData: any[] = []
+  let from = 0
+  const batchSize = 1000
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("cards")
+      .select("set_name")
+      .not("set_name", "is", null)
+      .range(from, from + batchSize - 1)
+
+    if (error) {
+      console.error("Error fetching batch:", error)
+      break
+    }
+
+    if (!data || data.length === 0) {
+      break
+    }
+
+    allData = [...allData, ...data]
+    console.log(`Fetched batch ${from}-${from + data.length - 1}, total so far: ${allData.length}`)
+
+    if (data.length < batchSize) {
+      // Last batch
+      break
+    }
+
+    from += batchSize
+  }
+
+  return allData
+}
+
 export default async function CardsPage({
   searchParams,
 }: {
@@ -58,29 +94,22 @@ export default async function CardsPage({
 
   const { data: cards } = await query.order("id")
 
-  // Get ALL unique set names - Remove the 1000 limit by using .range() or getting all data
-  console.log("=== FETCHING ALL SETS (NO LIMIT) ===")
+  // Get ALL unique set names - Use our custom function to bypass pagination
+  console.log("=== FETCHING ALL SETS (BYPASSING PAGINATION) ===")
 
-  const {
-    data: setsData,
-    error: setsError,
-    count,
-  } = await supabase.from("cards").select("set_name", { count: "exact" }).not("set_name", "is", null).range(0, 2000) // Get up to 2000 entries to be safe
-
-  console.log("Sets query error:", setsError)
-  console.log("Total count in database:", count)
-  console.log("Raw sets data retrieved:", setsData?.length)
+  const setsData = await getAllSets(supabase)
+  console.log("Total sets data retrieved:", setsData.length)
 
   // Let's examine the first 20 set names to see what we're getting
-  const first20Sets = setsData?.slice(0, 20).map((item) => item.set_name)
+  const first20Sets = setsData.slice(0, 20).map((item) => item.set_name)
   console.log("First 20 set names:", first20Sets)
 
   // Let's look for Source Secrète specifically in the raw data
-  const sourceSecreteEntries = setsData?.filter((item) => item.set_name && item.set_name.includes("Source"))
-  console.log("Raw entries containing 'Source':", sourceSecreteEntries?.length)
-  console.log("Sample Source entries:", sourceSecreteEntries?.slice(0, 5))
+  const sourceSecreteEntries = setsData.filter((item) => item.set_name && item.set_name.includes("Source"))
+  console.log("Raw entries containing 'Source':", sourceSecreteEntries.length)
+  console.log("Sample Source entries:", sourceSecreteEntries.slice(0, 5))
 
-  // Get unique rarity values for filter - also remove limit
+  // Get unique rarity values for filter - also use pagination bypass
   const { data: raritiesData, error: raritiesError } = await supabase
     .from("cards")
     .select("rarity")
@@ -90,7 +119,7 @@ export default async function CardsPage({
   // Extract unique sets - Let's debug this step by step
   console.log("=== UNIQUE SETS EXTRACTION DEBUG ===")
 
-  const allSetNames = setsData?.map((item) => item.set_name) || []
+  const allSetNames = setsData.map((item) => item.set_name)
   console.log("All set names count:", allSetNames.length)
 
   const filteredSetNames = allSetNames.filter((name) => name && name.trim() !== "")
@@ -123,29 +152,20 @@ export default async function CardsPage({
         <p>
           <strong>Debug Info:</strong>
         </p>
-        <p>Total count in database: {count || "Unknown"}</p>
-        <p>Raw sets data retrieved: {setsData?.length || 0}</p>
+        <p>Total sets data retrieved: {setsData.length}</p>
         <p>All set names count: {allSetNames.length}</p>
         <p>Filtered set names count: {filteredSetNames.length}</p>
         <p>Total unique sets: {uniqueSetNames.length}</p>
-        <p>Source entries found: {sourceSecreteEntries?.length || 0}</p>
+        <p>Source entries found: {sourceSecreteEntries.length}</p>
         <p>Source found in unique sets: {hasSourceSecrete ? "YES" : "NO"}</p>
         <p>All sets: {sortedSets.join(", ")}</p>
 
-        {(setsError || raritiesError) && (
-          <p className="text-red-600">
-            Errors:{" "}
-            {[setsError, raritiesError]
-              .filter(Boolean)
-              .map((e) => e?.message)
-              .join(", ")}
-          </p>
-        )}
+        {raritiesError && <p className="text-red-600">Rarities Error: {raritiesError.message}</p>}
 
         <details className="mt-2">
           <summary className="cursor-pointer font-medium">First 20 raw set names (click to expand)</summary>
           <div className="mt-2 text-xs bg-white p-2 rounded max-h-40 overflow-auto">
-            {first20Sets?.map((set, index) => (
+            {first20Sets.map((set, index) => (
               <div key={index} className="py-1 border-b border-gray-200 last:border-b-0">
                 "{set}"
               </div>
@@ -164,7 +184,7 @@ export default async function CardsPage({
           </div>
         </details>
 
-        {sourceSecreteEntries && sourceSecreteEntries.length > 0 && (
+        {sourceSecreteEntries.length > 0 && (
           <details className="mt-2">
             <summary className="cursor-pointer font-medium">
               Sample Source entries ({sourceSecreteEntries.length} total)
