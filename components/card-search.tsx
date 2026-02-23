@@ -12,17 +12,16 @@ import { Badge } from "@/components/ui/badge"
 import { Search, X, ChevronDown } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
-// Define the ordered list of rarities
+// Define the ordered list of rarities (French names from TCGdex API)
 const RARITY_ORDER = [
-  "Common",
-  "Uncommon",
-  "Rare",
-  "Double Rare",
-  "Art Rare",
-  "Full Art",
-  "Rainbow",
-  "Immersive",
-  "Gold",
+  "Un Diamant",
+  "Deux Diamants",
+  "Trois Diamants",
+  "Quatre Diamants",
+  "Une Étoile",
+  "Deux Étoiles",
+  "Trois Étoiles",
+  "Couronne",
 ]
 
 export function CardSearch({

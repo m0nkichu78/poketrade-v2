@@ -93,7 +93,7 @@ export function CardAdminList({ cards }: { cards: CardType[] }) {
             <TableHead className="w-[80px]">Image</TableHead>
             <TableHead>Name</TableHead>
             <TableHead>Set</TableHead>
-            <TableHead>Pack</TableHead>
+            <TableHead>Boosters</TableHead>
             <TableHead>Rarity</TableHead>
             <TableHead>Card #</TableHead>
             <TableHead className="text-right">Actions</TableHead>
@@ -114,7 +114,7 @@ export function CardAdminList({ cards }: { cards: CardType[] }) {
               </TableCell>
               <TableCell className="font-medium">{card.name}</TableCell>
               <TableCell>{card.set_name}</TableCell>
-              <TableCell>{card.pack}</TableCell>
+              <TableCell>{card.boosters?.join(", ") || "-"}</TableCell>
               <TableCell>{card.rarity || "N/A"}</TableCell>
               <TableCell>{card.card_number}</TableCell>
               <TableCell className="text-right">

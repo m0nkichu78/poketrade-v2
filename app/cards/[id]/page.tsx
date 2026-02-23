@@ -47,7 +47,11 @@ export default async function CardPage({ params }: { params: { id: string } }) {
             <h1 className="text-3xl font-bold">{card.name}</h1>
             <div className="flex flex-wrap gap-2 mt-2">
               <Badge variant="outline">{card.set_name}</Badge>
-              <Badge variant="outline">{card.pack}</Badge>
+              {card.boosters && card.boosters.length > 0 &&
+                card.boosters.map((booster: string) => (
+                  <Badge key={booster} variant="outline">{booster}</Badge>
+                ))
+              }
               {card.rarity && <Badge className="bg-primary/10 text-primary hover:bg-primary/20">{card.rarity}</Badge>}
               <Badge variant="secondary">{card.card_number}</Badge>
             </div>

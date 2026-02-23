@@ -1,41 +1,27 @@
 // This file contains translations for card-specific data
+// Avec l'API TCGdex en francais, les noms de raretes, sets, et boosters
+// sont deja en francais. Ce fichier sert principalement pour les attributs
+// qui pourraient necessiter une traduction supplementaire.
 
-// Map of English card attributes to French translations
-export const cardAttributeTranslations = {
-  // Rarities
-  Common: "Commune",
-  Uncommon: "Peu commune",
-  Rare: "Rare",
-  "Double Rare": "Double Rare",
-  "Art Rare": "Art Rare",
-  "Full Art": "Full Art",
-  Rainbow: "Arc-en-ciel",
-  Immersive: "Immersive",
-  Gold: "Or",
+// Map des attributs de carte
+export const cardAttributeTranslations: Record<string, string> = {
+  // Raretes TCGdex (deja en francais, mais gardes pour reference)
+  "Un Diamant": "Un Diamant",
+  "Deux Diamants": "Deux Diamants",
+  "Trois Diamants": "Trois Diamants",
+  "Quatre Diamants": "Quatre Diamants",
+  "Une Étoile": "Une Étoile",
+  "Deux Étoiles": "Deux Étoiles",
+  "Trois Étoiles": "Trois Étoiles",
+  "Couronne": "Couronne",
 
-  // Sets
-  "Scarlet & Violet": "Écarlate & Violet",
-  "Paldean Fates": "Destins de Paldea",
-  "Temporal Forces": "Forces Temporelles",
-  "Obsidian Flames": "Flammes Obsidiennes",
-  "Paradox Rift": "Faille Paradoxale",
-  "151": "151",
-
-  // Packs
-  "Starter Pack": "Pack de Démarrage",
-  "Booster Pack": "Pack d'Extension",
-  "Special Pack": "Pack Spécial",
-  "Promo Pack": "Pack Promotionnel",
-
-  // Card types
+  // Types de cartes
   Pokémon: "Pokémon",
   Trainer: "Dresseur",
   Energy: "Énergie",
 
-  // Other attributes that might appear on cards
-  Shiny: "Chromatique",
+  // Autres attributs
   Promo: "Promo",
-  "Special Illustration": "Illustration Spéciale",
 }
 
 // Function to translate card attributes based on current language
@@ -58,8 +44,7 @@ export function translateCardData(card: any, language: string): any {
       ...card,
       rarity: translateCardAttribute(card.rarity, language),
       set_name: translateCardAttribute(card.set_name, language),
-      pack: translateCardAttribute(card.pack, language),
-      // We don't translate the card name, id, or image_url
+      // boosters sont deja en francais depuis TCGdex
     }
   }
 
