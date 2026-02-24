@@ -12,7 +12,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { Loader2, RefreshCw, CheckCircle2, AlertCircle, Database } from "lucide-react"
 
 interface TcgdexSetSummary {
@@ -220,10 +219,12 @@ export default function SyncPage() {
               {totalCardsInDb} / {totalCardsAvailable}
             </span>
           </div>
-          <Progress
-            value={totalCardsAvailable > 0 ? (totalCardsInDb / totalCardsAvailable) * 100 : 0}
-            className="h-2"
-          />
+          <div className="h-2 w-full rounded-full bg-secondary overflow-hidden">
+            <div
+              className="h-full bg-primary rounded-full transition-all"
+              style={{ width: `${totalCardsAvailable > 0 ? (totalCardsInDb / totalCardsAvailable) * 100 : 0}%` }}
+            />
+          </div>
         </CardContent>
       </Card>
 
