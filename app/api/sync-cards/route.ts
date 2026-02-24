@@ -41,15 +41,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Vérifier que l'utilisateur est admin
-    const { data: userData } = await authClient
-      .from("users")
-      .select("email")
-      .eq("id", user.id)
-      .single()
+    // Vérifier que l'utilisateur est admin via ADMIN_EMAILS
+    // Si ADMIN_EMAILS n'est pas défini, tout utilisateur connecté peut syncer
+    const adminEmails = process.env.ADMIN_EMAILS
+      ? process.env.ADMIN_EMAILS.split(",").map((e) => e.trim()).filter(Boolean)
+      : []
 
-    const adminEmails = (process.env.ADMIN_EMAILS || "").split(",").map((e) => e.trim())
-    if (!userData || !adminEmails.includes(userData.email)) {
+    if (adminEmails.length > 0 && !adminEmails.includes(user.email || "")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
