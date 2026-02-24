@@ -30,6 +30,7 @@ interface SyncStatus {
   message?: string
   inserted?: number
   total?: number
+  progress?: number // 0-100
 }
 
 export default function SyncPage() {
@@ -87,10 +88,13 @@ export default function SyncPage() {
     loadDbCounts()
   }, [loadSets, loadDbCounts])
 
+  // Taille de chaque tranche de cartes envoyée à l'API (20 = ~10s max par requête)
+  const SYNC_PAGE_SIZE = 20
+
   const syncSet = async (setId: string) => {
     setSyncStatuses((prev) => ({
       ...prev,
-      [setId]: { setId, status: "syncing" },
+      [setId]: { setId, status: "syncing", progress: 0 },
     }))
 
     try {
@@ -102,19 +106,46 @@ export default function SyncPage() {
         throw new Error("Non authentifie")
       }
 
-      const res = await fetch("/api/sync-cards", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ setId }),
-      })
+      let offset = 0
+      let totalInserted = 0
+      let total = 0
 
-      const data = await res.json()
+      // Boucle paginée : on appelle l'API par tranches jusqu'à ce que done = true
+      while (true) {
+        const res = await fetch("/api/sync-cards", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ setId, offset, limit: SYNC_PAGE_SIZE }),
+        })
 
-      if (!res.ok) {
-        throw new Error(data.error || "Erreur lors de la synchronisation")
+        const data = await res.json()
+
+        if (!res.ok) {
+          throw new Error(data.error || "Erreur lors de la synchronisation")
+        }
+
+        total = data.total
+        totalInserted += data.inserted
+        offset = data.nextOffset ?? total
+
+        const progress = total > 0 ? Math.round((offset / total) * 100) : 100
+
+        setSyncStatuses((prev) => ({
+          ...prev,
+          [setId]: {
+            setId,
+            status: "syncing",
+            progress,
+            message: `${offset} / ${total} cartes...`,
+            inserted: totalInserted,
+            total,
+          },
+        }))
+
+        if (data.done) break
       }
 
       setSyncStatuses((prev) => ({
@@ -122,18 +153,18 @@ export default function SyncPage() {
         [setId]: {
           setId,
           status: "success",
-          message: `${data.inserted}/${data.total} cartes synchronisees`,
-          inserted: data.inserted,
-          total: data.total,
+          progress: 100,
+          message: `${totalInserted} / ${total} cartes synchronisees`,
+          inserted: totalInserted,
+          total,
         },
       }))
 
-      // Recharger les compteurs
       await loadDbCounts()
 
       toast({
         title: "Synchronisation reussie",
-        description: `${data.inserted} cartes synchronisees pour cette extension`,
+        description: `${totalInserted} cartes synchronisees pour cette extension`,
       })
     } catch (error: any) {
       setSyncStatuses((prev) => ({
@@ -290,17 +321,27 @@ export default function SyncPage() {
                     </div>
                   </div>
                 </CardHeader>
-                {status?.message && (
-                  <CardContent className="pt-0">
-                    <p
-                      className={`text-sm ${
-                        status.status === "error"
-                          ? "text-destructive"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      {status.message}
-                    </p>
+                {(status?.message || status?.status === "syncing") && (
+                  <CardContent className="pt-0 space-y-2">
+                    {status.status === "syncing" && typeof status.progress === "number" && (
+                      <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+                        <div
+                          className="h-full bg-primary rounded-full transition-all duration-300"
+                          style={{ width: `${status.progress}%` }}
+                        />
+                      </div>
+                    )}
+                    {status?.message && (
+                      <p
+                        className={`text-sm ${
+                          status.status === "error"
+                            ? "text-destructive"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {status.message}
+                      </p>
+                    )}
                   </CardContent>
                 )}
               </Card>

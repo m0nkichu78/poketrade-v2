@@ -3,6 +3,9 @@ import { NextResponse } from "next/server"
 import { tcgdexService, type FormattedCard } from "@/lib/tcgdex-service"
 import type { Database } from "@/lib/database.types"
 
+// Limite le timeout Vercel à 300s (max sur Pro, 60s sur Hobby)
+export const maxDuration = 300
+
 // Utilise le service role pour l'insertion en masse
 function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -13,7 +16,7 @@ function createAdminClient() {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { setId } = body
+    const { setId, offset = 0, limit = 20 } = body
 
     if (!setId) {
       return NextResponse.json(
@@ -51,29 +54,62 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    // Récupérer les cartes depuis TCGdex
-    const cards = await tcgdexService.fetchAndFormatSetCards(setId)
+    // 1. Récupérer la liste des cartes du set (léger, pas de timeout)
+    const set = await tcgdexService.getSetCards(setId)
+    const allCardSummaries = set.cards
+    const total = allCardSummaries.length
 
-    if (cards.length === 0) {
-      return NextResponse.json(
-        { error: "No cards found for this set" },
-        { status: 404 }
-      )
+    // 2. Extraire seulement la tranche demandée (pagination)
+    const slice = allCardSummaries.slice(offset, offset + limit)
+
+    if (slice.length === 0) {
+      return NextResponse.json({ success: true, total, inserted: 0, done: true })
     }
 
-    // Insérer en base par batch de 50
+    // 3. Récupérer les détails complets de la tranche par batches de 10
+    const FETCH_BATCH = 10
+    const formattedCards: FormattedCard[] = []
+
+    for (let i = 0; i < slice.length; i += FETCH_BATCH) {
+      const batch = slice.slice(i, i + FETCH_BATCH)
+      const cardDetails = await Promise.all(
+        batch.map((card) =>
+          tcgdexService.getCardFull(card.id).catch((err) => {
+            console.error(`Error fetching card ${card.id}:`, err)
+            return null
+          })
+        )
+      )
+
+      for (const card of cardDetails) {
+        if (!card) continue
+        formattedCards.push({
+          id: card.id,
+          name: card.name,
+          set_name: card.set.name,
+          set_id: card.set.id,
+          rarity: card.rarity || null,
+          card_number: card.localId,
+          image_url: card.image ? `${card.image}/high.webp` : "",
+          boosters: card.boosters?.map((b) => b.name) || null,
+          tcgdex_updated_at: card.updated || null,
+        })
+      }
+
+      if (i + FETCH_BATCH < slice.length) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+    }
+
+    // 4. Insérer la tranche en base
     const adminSupabase = createAdminClient()
-    const BATCH_SIZE = 50
-    let successCount = 0
     const errors: string[] = []
 
-    for (let i = 0; i < cards.length; i += BATCH_SIZE) {
-      const batch = cards.slice(i, i + BATCH_SIZE)
-
+    if (formattedCards.length > 0) {
       const { error } = await adminSupabase
         .from("cards")
         .upsert(
-          batch.map((card: FormattedCard) => ({
+          formattedCards.map((card: FormattedCard) => ({
             id: card.id,
             name: card.name,
             set_name: card.set_name,
@@ -88,16 +124,19 @@ export async function POST(request: Request) {
         )
 
       if (error) {
-        errors.push(`Batch ${i / BATCH_SIZE + 1}: ${error.message}`)
-      } else {
-        successCount += batch.length
+        errors.push(error.message)
       }
     }
 
+    const nextOffset = offset + limit
+    const done = nextOffset >= total
+
     return NextResponse.json({
       success: true,
-      total: cards.length,
-      inserted: successCount,
+      total,
+      inserted: formattedCards.length,
+      nextOffset: done ? null : nextOffset,
+      done,
       errors: errors.length > 0 ? errors : undefined,
     })
   } catch (error: any) {
