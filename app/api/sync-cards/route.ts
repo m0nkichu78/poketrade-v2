@@ -58,6 +58,16 @@ export async function POST(request: Request) {
     const set = await tcgdexService.getSetCards(setId)
     const allCardSummaries = set.cards
     const total = allCardSummaries.length
+    const totalExpected = set.cardCount?.total ?? 0
+
+    // Si l'API ne retourne aucune carte mais qu'il devrait y en avoir,
+    // c'est que TCGdex n'a pas encore indexé cette extension
+    if (total === 0 && totalExpected > 0) {
+      return NextResponse.json(
+        { error: `Les cartes de l'extension "${set.name}" ne sont pas encore disponibles sur TCGdex (${totalExpected} attendues).` },
+        { status: 404 }
+      )
+    }
 
     // 2. Extraire seulement la tranche demandée (pagination)
     const slice = allCardSummaries.slice(offset, offset + limit)

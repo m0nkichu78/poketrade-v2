@@ -134,6 +134,24 @@ export default function SyncPage() {
 
         const data = await res.json()
 
+        // Cas spécial : extension pas encore indexée sur TCGdex
+        if (res.status === 404) {
+          setSyncStatuses((prev) => ({
+            ...prev,
+            [setId]: {
+              setId,
+              status: "error",
+              message: data.error || "Cartes non disponibles sur TCGdex",
+            },
+          }))
+          toast({
+            title: "Extension non disponible",
+            description: data.error || "Les cartes ne sont pas encore sur TCGdex",
+            variant: "destructive",
+          })
+          return
+        }
+
         if (!res.ok) {
           throw new Error(data.error || "Erreur lors de la synchronisation")
         }
