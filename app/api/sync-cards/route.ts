@@ -3,8 +3,8 @@ import { NextResponse } from "next/server"
 import { tcgdexService, type FormattedCard } from "@/lib/tcgdex-service"
 import type { Database } from "@/lib/database.types"
 
-// Limite le timeout Vercel à 300s (max sur Pro, 60s sur Hobby)
-export const maxDuration = 300
+// Limite le timeout Vercel à 60s (max sur Hobby)
+export const maxDuration = 60
 
 // Utilise le service role pour l'insertion en masse
 function createAdminClient() {
