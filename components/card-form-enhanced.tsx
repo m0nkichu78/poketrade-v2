@@ -30,7 +30,8 @@ export function CardFormEnhanced({ card, isEditing = false }: CardFormProps) {
     id: card?.id || "",
     name: card?.name || "",
     set_name: card?.set_name || "",
-    pack: card?.pack || "",
+    set_id: card?.set_id || "",
+    boosters: card?.boosters?.join(", ") || "",
     rarity: card?.rarity || "",
     card_number: card?.card_number || "",
     image_url: card?.image_url || "",
@@ -73,9 +74,13 @@ export function CardFormEnhanced({ card, isEditing = false }: CardFormProps) {
 
     try {
       // Valider les données du formulaire
-      if (!formData.id || !formData.name || !formData.set_name || !formData.pack || !formData.card_number) {
+      if (!formData.id || !formData.name || !formData.set_name || !formData.card_number) {
         throw new Error("Veuillez remplir tous les champs obligatoires")
       }
+
+      const boostersArray = formData.boosters
+        ? formData.boosters.split(",").map((b: string) => b.trim()).filter(Boolean)
+        : null
 
       if (isEditing) {
         // Mettre à jour la carte existante
@@ -84,7 +89,8 @@ export function CardFormEnhanced({ card, isEditing = false }: CardFormProps) {
           {
             name: formData.name,
             set_name: formData.set_name,
-            pack: formData.pack,
+            set_id: formData.set_id,
+            boosters: boostersArray,
             rarity: formData.rarity || null,
             card_number: formData.card_number,
             image_url: formData.image_url,
@@ -105,7 +111,8 @@ export function CardFormEnhanced({ card, isEditing = false }: CardFormProps) {
             id: formData.id,
             name: formData.name,
             set_name: formData.set_name,
-            pack: formData.pack,
+            set_id: formData.set_id,
+            boosters: boostersArray,
             rarity: formData.rarity || null,
             card_number: formData.card_number,
             image_url: formData.image_url,
@@ -186,9 +193,9 @@ export function CardFormEnhanced({ card, isEditing = false }: CardFormProps) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="pack">Pack (obligatoire)</Label>
-          <Input id="pack" name="pack" value={formData.pack} onChange={handleChange} disabled={isLoading} required />
-          <p className="text-sm text-muted-foreground">Le pack auquel appartient la carte (ex: "Base Set")</p>
+          <Label htmlFor="boosters">Boosters</Label>
+          <Input id="boosters" name="boosters" value={formData.boosters} onChange={handleChange} disabled={isLoading} />
+          <p className="text-sm text-muted-foreground">Noms des boosters, separes par des virgules (ex: "Mewtwo, Dracaufeu")</p>
         </div>
 
         <div className="space-y-2">

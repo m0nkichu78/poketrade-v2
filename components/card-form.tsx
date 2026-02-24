@@ -29,7 +29,8 @@ export function CardForm({ card, isEditing = false }: CardFormProps) {
     id: card?.id || "",
     name: card?.name || "",
     set_name: card?.set_name || "",
-    pack: card?.pack || "",
+    set_id: card?.set_id || "",
+    boosters: card?.boosters?.join(", ") || "",
     rarity: card?.rarity || "",
     card_number: card?.card_number || "",
     image_url: card?.image_url || "",
@@ -46,9 +47,13 @@ export function CardForm({ card, isEditing = false }: CardFormProps) {
 
     try {
       // Validate form data
-      if (!formData.id || !formData.name || !formData.set_name || !formData.pack || !formData.card_number) {
+      if (!formData.id || !formData.name || !formData.set_name || !formData.card_number) {
         throw new Error("Please fill in all required fields")
       }
+
+      const boostersArray = formData.boosters
+        ? formData.boosters.split(",").map((b: string) => b.trim()).filter(Boolean)
+        : null
 
       if (isEditing) {
         // Update existing card
@@ -57,7 +62,8 @@ export function CardForm({ card, isEditing = false }: CardFormProps) {
           .update({
             name: formData.name,
             set_name: formData.set_name,
-            pack: formData.pack,
+            set_id: formData.set_id,
+            boosters: boostersArray,
             rarity: formData.rarity || null,
             card_number: formData.card_number,
             image_url: formData.image_url,
@@ -76,7 +82,8 @@ export function CardForm({ card, isEditing = false }: CardFormProps) {
           id: formData.id,
           name: formData.name,
           set_name: formData.set_name,
-          pack: formData.pack,
+          set_id: formData.set_id,
+          boosters: boostersArray,
           rarity: formData.rarity || null,
           card_number: formData.card_number,
           image_url: formData.image_url,
@@ -139,15 +146,15 @@ export function CardForm({ card, isEditing = false }: CardFormProps) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="pack">Pack (required)</Label>
-          <Input id="pack" name="pack" value={formData.pack} onChange={handleChange} disabled={isLoading} required />
-          <p className="text-sm text-muted-foreground">The pack the card belongs to (e.g., "Base Set")</p>
+          <Label htmlFor="boosters">Boosters</Label>
+          <Input id="boosters" name="boosters" value={formData.boosters} onChange={handleChange} disabled={isLoading} />
+          <p className="text-sm text-muted-foreground">Noms des boosters, separes par des virgules (ex: "Mewtwo, Dracaufeu")</p>
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="rarity">Rarity</Label>
           <Input id="rarity" name="rarity" value={formData.rarity} onChange={handleChange} disabled={isLoading} />
-          <p className="text-sm text-muted-foreground">The rarity of the card (e.g., "Common", "Rare", "Ultra Rare")</p>
+          <p className="text-sm text-muted-foreground">La rarete de la carte (ex: "Un Diamant", "Quatre Diamants", "Couronne")</p>
         </div>
 
         <div className="space-y-2">

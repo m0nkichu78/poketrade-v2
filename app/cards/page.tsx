@@ -112,11 +112,31 @@ export default async function CardsPage({
     ? [...new Set(raritiesData.map((card) => card.rarity).filter((rarity) => rarity && rarity.trim() !== ""))]
     : []
 
+  const totalCards = cards?.length ?? 0
+  const noCardsInDb = totalCards === 0 && sortedSets.length === 0
+
   return (
     <div className="container py-8">
       <h1 className="text-3xl font-bold mb-6">Cartes Pokémon TCG Pocket</h1>
-      <CardSearch sets={sortedSets} rarities={uniqueRarities} />
-      <CardGrid cards={cards || []} />
+      {noCardsInDb ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+          <p className="text-muted-foreground text-lg">
+            Aucune carte en base de données.
+          </p>
+          <p className="text-muted-foreground text-sm">
+            Rendez-vous dans{" "}
+            <a href="/admin/import" className="underline text-foreground font-medium">
+              Administration → Synchronisation TCGdex
+            </a>{" "}
+            pour importer les cartes depuis l'API.
+          </p>
+        </div>
+      ) : (
+        <>
+          <CardSearch sets={sortedSets} rarities={uniqueRarities} />
+          <CardGrid cards={cards || []} />
+        </>
+      )}
     </div>
   )
 }

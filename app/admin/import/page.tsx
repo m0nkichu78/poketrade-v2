@@ -1,295 +1,383 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, useCallback } from "react"
 import { useSupabase } from "@/lib/supabase-provider"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, Upload, FileText } from "lucide-react"
-import type { Database } from "@/lib/database.types"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Loader2, RefreshCw, CheckCircle2, AlertCircle, Database } from "lucide-react"
 
-type CardType = Database["public"]["Tables"]["cards"]["Insert"]
+interface TcgdexSetSummary {
+  id: string
+  name: string
+  cardCount: {
+    official: number
+    total: number
+  }
+  symbol?: string
+}
 
-export default function ImportPage() {
+interface SyncStatus {
+  setId: string
+  status: "idle" | "syncing" | "success" | "error"
+  message?: string
+  inserted?: number
+  total?: number
+  progress?: number // 0-100
+}
+
+export default function SyncPage() {
   const { supabase } = useSupabase()
-  const router = useRouter()
   const { toast } = useToast()
-  const [isLoading, setIsLoading] = useState(false)
-  const [jsonData, setJsonData] = useState("")
-  const [csvData, setCsvData] = useState("")
-  const [fileContent, setFileContent] = useState<string | null>(null)
+  const [sets, setSets] = useState<TcgdexSetSummary[]>([])
+  const [loadingSets, setLoadingSets] = useState(true)
+  const [syncStatuses, setSyncStatuses] = useState<Record<string, SyncStatus>>({})
+  const [dbCardCounts, setDbCardCounts] = useState<Record<string, number>>({})
+  const [syncAllRunning, setSyncAllRunning] = useState(false)
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const content = event.target?.result as string
-      setFileContent(content)
-
-      // Determine if it's JSON or CSV based on file extension
-      if (file.name.endsWith(".json")) {
-        setJsonData(content)
-        setCsvData("")
-      } else if (file.name.endsWith(".csv")) {
-        setCsvData(content)
-        setJsonData("")
-      }
-    }
-    reader.readAsText(file)
-  }
-
-  const parseJsonData = (): CardType[] => {
+  // Charger les extensions TCG Pocket depuis l'API TCGdex
+  const loadSets = useCallback(async () => {
+    setLoadingSets(true)
     try {
-      const parsed = JSON.parse(jsonData)
-
-      // Handle array of cards
-      if (Array.isArray(parsed)) {
-        return parsed.map((card) => ({
-          id: card.id,
-          name: card.name,
-          set_name: card.set_name,
-          pack: card.pack,
-          rarity: card.rarity,
-          card_number: card.card_number,
-          image_url: card.image_url,
-        }))
-      }
-
-      // Handle single card object
-      return [
-        {
-          id: parsed.id,
-          name: parsed.name,
-          set_name: parsed.set_name,
-          pack: parsed.pack,
-          rarity: parsed.rarity,
-          card_number: parsed.card_number,
-          image_url: parsed.image_url,
-        },
-      ]
-    } catch (error) {
-      throw new Error("Invalid JSON format")
-    }
-  }
-
-  const parseCsvData = (): CardType[] => {
-    try {
-      const lines = csvData.trim().split("\n")
-      const headers = lines[0].split(",").map((h) => h.trim())
-
-      // Validate required headers
-      const requiredHeaders = ["id", "name", "set_name", "pack", "card_number", "image_url"]
-      for (const header of requiredHeaders) {
-        if (!headers.includes(header)) {
-          throw new Error(`CSV is missing required header: ${header}`)
-        }
-      }
-
-      const cards: CardType[] = []
-
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(",").map((v) => v.trim())
-
-        if (values.length !== headers.length) {
-          console.warn(`Skipping line ${i + 1}: incorrect number of values`)
-          continue
-        }
-
-        const card: any = {}
-
-        headers.forEach((header, index) => {
-          card[header] = values[index]
-        })
-
-        cards.push({
-          id: card.id,
-          name: card.name,
-          set_name: card.set_name,
-          pack: card.pack,
-          rarity: card.rarity || null,
-          card_number: card.card_number,
-          image_url: card.image_url,
-        })
-      }
-
-      return cards
-    } catch (error: any) {
-      throw new Error(`Error parsing CSV: ${error.message}`)
-    }
-  }
-
-  const handleImport = async () => {
-    setIsLoading(true)
-    try {
-      let cards: CardType[] = []
-
-      // Parse data based on active tab
-      if (jsonData) {
-        cards = parseJsonData()
-      } else if (csvData) {
-        cards = parseCsvData()
-      } else {
-        throw new Error("No data to import")
-      }
-
-      if (cards.length === 0) {
-        throw new Error("No valid cards found to import")
-      }
-
-      // Import cards in batches to avoid hitting rate limits
-      const batchSize = 50
-      let successCount = 0
-
-      for (let i = 0; i < cards.length; i += batchSize) {
-        const batch = cards.slice(i, i + batchSize)
-
-        const { error, count } = await supabase.from("cards").upsert(batch, { onConflict: "id" }).select("count")
-
-        if (error) throw error
-
-        successCount += batch.length
-
-        // Show progress toast for large imports
-        if (cards.length > batchSize) {
-          toast({
-            title: "Import progress",
-            description: `Imported ${successCount} of ${cards.length} cards`,
-          })
-        }
-
-        // Add a small delay to avoid rate limiting
-        if (i + batchSize < cards.length) {
-          await new Promise((resolve) => setTimeout(resolve, 1000))
-        }
-      }
-
-      toast({
-        title: "Import successful",
-        description: `Successfully imported ${successCount} cards`,
-      })
-
-      // Redirect to admin cards page
-      router.push("/admin/cards")
-      router.refresh()
+      const res = await fetch("https://api.tcgdex.net/v2/fr/series/tcgp")
+      if (!res.ok) throw new Error("Erreur lors du chargement des extensions")
+      const data = await res.json()
+      setSets(data.sets || [])
     } catch (error: any) {
       toast({
-        title: "Import failed",
-        description: error.message || "Failed to import cards",
+        title: "Erreur",
+        description: error.message || "Impossible de charger les extensions",
         variant: "destructive",
       })
     } finally {
-      setIsLoading(false)
+      setLoadingSets(false)
+    }
+  }, [toast])
+
+  // Charger le nombre de cartes en base par set
+  // Supabase limite à 1000 rows par défaut — on pagine pour tout récupérer
+  const loadDbCounts = useCallback(async () => {
+    try {
+      const counts: Record<string, number> = {}
+      const PAGE_SIZE = 1000
+      let from = 0
+      let hasMore = true
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("cards")
+          .select("set_id")
+          .range(from, from + PAGE_SIZE - 1)
+
+        if (error) throw error
+
+        for (const row of data || []) {
+          if (row.set_id) {
+            counts[row.set_id] = (counts[row.set_id] || 0) + 1
+          }
+        }
+
+        hasMore = (data?.length ?? 0) === PAGE_SIZE
+        from += PAGE_SIZE
+      }
+
+      setDbCardCounts(counts)
+    } catch (error) {
+      console.error("Error loading DB counts:", error)
+    }
+  }, [supabase])
+
+  useEffect(() => {
+    loadSets()
+    loadDbCounts()
+  }, [loadSets, loadDbCounts])
+
+  // Taille de chaque tranche de cartes envoyée à l'API (20 = ~10s max par requête)
+  const SYNC_PAGE_SIZE = 20
+
+  const syncSet = async (setId: string) => {
+    setSyncStatuses((prev) => ({
+      ...prev,
+      [setId]: { setId, status: "syncing", progress: 0 },
+    }))
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        throw new Error("Non authentifie")
+      }
+
+      let offset = 0
+      let totalInserted = 0
+      let total = 0
+
+      // Boucle paginée : on appelle l'API par tranches jusqu'à ce que done = true
+      while (true) {
+        const res = await fetch("/api/sync-cards", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ setId, offset, limit: SYNC_PAGE_SIZE }),
+        })
+
+        const data = await res.json()
+
+        // Cas spécial : extension pas encore indexée sur TCGdex
+        if (res.status === 404) {
+          setSyncStatuses((prev) => ({
+            ...prev,
+            [setId]: {
+              setId,
+              status: "error",
+              message: data.error || "Cartes non disponibles sur TCGdex",
+            },
+          }))
+          toast({
+            title: "Extension non disponible",
+            description: data.error || "Les cartes ne sont pas encore sur TCGdex",
+            variant: "destructive",
+          })
+          return
+        }
+
+        if (!res.ok) {
+          throw new Error(data.error || "Erreur lors de la synchronisation")
+        }
+
+        total = data.total
+        totalInserted += data.inserted
+        offset = data.nextOffset ?? total
+
+        const progress = total > 0 ? Math.round((offset / total) * 100) : 100
+
+        setSyncStatuses((prev) => ({
+          ...prev,
+          [setId]: {
+            setId,
+            status: "syncing",
+            progress,
+            message: `${offset} / ${total} cartes...`,
+            inserted: totalInserted,
+            total,
+          },
+        }))
+
+        if (data.done) break
+      }
+
+      setSyncStatuses((prev) => ({
+        ...prev,
+        [setId]: {
+          setId,
+          status: "success",
+          progress: 100,
+          message: `${totalInserted} / ${total} cartes synchronisees`,
+          inserted: totalInserted,
+          total,
+        },
+      }))
+
+      await loadDbCounts()
+
+      toast({
+        title: "Synchronisation reussie",
+        description: `${totalInserted} cartes synchronisees pour cette extension`,
+      })
+    } catch (error: any) {
+      setSyncStatuses((prev) => ({
+        ...prev,
+        [setId]: {
+          setId,
+          status: "error",
+          message: error.message,
+        },
+      }))
+
+      toast({
+        title: "Erreur de synchronisation",
+        description: error.message,
+        variant: "destructive",
+      })
     }
   }
 
+  const syncAll = async () => {
+    setSyncAllRunning(true)
+    for (const set of sets) {
+      await syncSet(set.id)
+    }
+    setSyncAllRunning(false)
+    toast({
+      title: "Synchronisation globale terminee",
+      description: `Toutes les extensions ont ete traitees`,
+    })
+  }
+
+  const getStatusIcon = (status?: SyncStatus) => {
+    if (!status || status.status === "idle") return null
+    if (status.status === "syncing")
+      return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+    if (status.status === "success")
+      return <CheckCircle2 className="h-4 w-4 text-green-600" />
+    if (status.status === "error")
+      return <AlertCircle className="h-4 w-4 text-destructive" />
+    return null
+  }
+
+  const totalCardsInDb = Object.values(dbCardCounts).reduce((a, b) => a + b, 0)
+  const totalCardsAvailable = sets.reduce((a, s) => a + s.cardCount.total, 0)
+
   return (
     <div className="container py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Import Cards</h1>
-        <p className="text-muted-foreground">Bulk import cards from JSON or CSV</p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold font-sans">Synchronisation TCGdex</h1>
+          <p className="text-muted-foreground mt-1">
+            Synchronisez les cartes depuis l'API TCGdex pour TCG Pocket
+          </p>
+        </div>
+        <Button
+          onClick={syncAll}
+          disabled={syncAllRunning || loadingSets}
+          size="lg"
+        >
+          {syncAllRunning ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Synchronisation en cours...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Tout synchroniser
+            </>
+          )}
+        </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Import Cards</CardTitle>
-          <CardDescription>Upload a file or paste data to import multiple cards at once</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-6">
-            <Label htmlFor="file-upload" className="block mb-2">
-              Upload File
-            </Label>
-            <div className="flex items-center gap-4">
-              <Input
-                id="file-upload"
-                type="file"
-                accept=".json,.csv"
-                onChange={handleFileUpload}
-                disabled={isLoading}
-                className="hidden"
-              />
-              <Button
-                onClick={() => document.getElementById("file-upload")?.click()}
-                variant="outline"
-                disabled={isLoading}
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                Choose File
-              </Button>
-              {fileContent && <p className="text-sm text-muted-foreground">File loaded successfully</p>}
+      {/* Barre de progression globale */}
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Database className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Cartes en base de donnees</span>
             </div>
+            <span className="text-sm text-muted-foreground">
+              {totalCardsInDb} / {totalCardsAvailable}
+            </span>
           </div>
-
-          <Tabs defaultValue="json">
-            <TabsList className="mb-4">
-              <TabsTrigger value="json">JSON</TabsTrigger>
-              <TabsTrigger value="csv">CSV</TabsTrigger>
-            </TabsList>
-            <TabsContent value="json">
-              <div className="space-y-2">
-                <Label htmlFor="json-data">JSON Data</Label>
-                <Textarea
-                  id="json-data"
-                  value={jsonData}
-                  onChange={(e) => setJsonData(e.target.value)}
-                  placeholder='[{"id": "sv1-001", "name": "Pikachu", "set_name": "Scarlet & Violet", "pack": "Base Set", "rarity": "Rare", "card_number": "001/150", "image_url": "https://example.com/pikachu.jpg"}]'
-                  className="min-h-[200px] font-mono text-sm"
-                  disabled={isLoading}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Paste JSON array of card objects with id, name, set_name, pack, rarity, card_number, and image_url
-                  fields
-                </p>
-              </div>
-            </TabsContent>
-            <TabsContent value="csv">
-              <div className="space-y-2">
-                <Label htmlFor="csv-data">CSV Data</Label>
-                <Textarea
-                  id="csv-data"
-                  value={csvData}
-                  onChange={(e) => setCsvData(e.target.value)}
-                  placeholder="id,name,set_name,pack,rarity,card_number,image_url
-sv1-001,Pikachu,Scarlet & Violet,Base Set,Rare,001/150,https://example.com/pikachu.jpg"
-                  className="min-h-[200px] font-mono text-sm"
-                  disabled={isLoading}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Paste CSV data with headers: id, name, set_name, pack, rarity, card_number, image_url
-                </p>
-              </div>
-            </TabsContent>
-          </Tabs>
+          <div className="h-2 w-full rounded-full bg-secondary overflow-hidden">
+            <div
+              className="h-full bg-primary rounded-full transition-all"
+              style={{ width: `${totalCardsAvailable > 0 ? (totalCardsInDb / totalCardsAvailable) * 100 : 0}%` }}
+            />
+          </div>
         </CardContent>
-        <CardFooter>
-          <Button onClick={handleImport} disabled={isLoading || (!jsonData && !csvData)}>
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Importing...
-              </>
-            ) : (
-              <>
-                <FileText className="mr-2 h-4 w-4" />
-                Import Cards
-              </>
-            )}
-          </Button>
-        </CardFooter>
       </Card>
+
+      {/* Liste des extensions */}
+      {loadingSets ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {sets.map((set) => {
+            const status = syncStatuses[set.id]
+            const dbCount = dbCardCounts[set.id] || 0
+            const isSynced = dbCount >= set.cardCount.total
+            const isSyncing = status?.status === "syncing"
+
+            return (
+              <Card key={set.id}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {set.symbol && (
+                        <img
+                          src={set.symbol}
+                          alt={`Symbole ${set.name}`}
+                          className="h-8 w-8 object-contain"
+                          crossOrigin="anonymous"
+                        />
+                      )}
+                      <div>
+                        <CardTitle className="text-lg font-sans">
+                          {set.name}
+                        </CardTitle>
+                        <CardDescription>
+                          {set.id} - {set.cardCount.total} cartes (dont{" "}
+                          {set.cardCount.official} officielles)
+                        </CardDescription>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {getStatusIcon(status)}
+                      <Badge variant={isSynced ? "default" : "secondary"}>
+                        {dbCount} / {set.cardCount.total}
+                      </Badge>
+                      <Button
+                        onClick={() => syncSet(set.id)}
+                        disabled={isSyncing || syncAllRunning}
+                        variant={isSynced ? "outline" : "default"}
+                        size="sm"
+                      >
+                        {isSyncing ? (
+                          <>
+                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                            Sync...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="mr-2 h-3 w-3" />
+                            {isSynced ? "Re-sync" : "Synchroniser"}
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                {(status?.message || status?.status === "syncing") && (
+                  <CardContent className="pt-0 space-y-2">
+                    {status.status === "syncing" && typeof status.progress === "number" && (
+                      <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+                        <div
+                          className="h-full bg-primary rounded-full transition-all duration-300"
+                          style={{ width: `${status.progress}%` }}
+                        />
+                      </div>
+                    )}
+                    {status?.message && (
+                      <p
+                        className={`text-sm ${
+                          status.status === "error"
+                            ? "text-destructive"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {status.message}
+                      </p>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
-}
-
-// Hidden Input component for file upload
-function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} />
 }

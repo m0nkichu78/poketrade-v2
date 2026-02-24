@@ -73,7 +73,7 @@ export const cardService = {
     try {
       // Si un fichier image est fourni, téléchargez-le d'abord
       if (imageFile) {
-        const userId = "admin" // Utilisez l'ID de l'utilisateur réel si disponible
+        const userId = "admin"
         const imageUrl = await storageService.uploadCardImage(imageFile, userId)
 
         if (imageUrl) {
@@ -95,7 +95,7 @@ export const cardService = {
     try {
       // Si un fichier image est fourni, téléchargez-le d'abord
       if (imageFile) {
-        const userId = "admin" // Utilisez l'ID de l'utilisateur réel si disponible
+        const userId = "admin"
         const imageUrl = await storageService.uploadCardImage(imageFile, userId)
 
         if (imageUrl) {

@@ -8,30 +8,36 @@ export interface Database {
           id: string
           name: string
           set_name: string
-          pack: string
+          set_id: string
           rarity: string | null
           card_number: string
           image_url: string
+          boosters: string[] | null
+          tcgdex_updated_at: string | null
           created_at: string
         }
         Insert: {
           id: string
           name: string
           set_name: string
-          pack: string
+          set_id: string
           rarity?: string | null
           card_number: string
           image_url: string
+          boosters?: string[] | null
+          tcgdex_updated_at?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           name?: string
           set_name?: string
-          pack?: string
+          set_id?: string
           rarity?: string | null
           card_number?: string
           image_url?: string
+          boosters?: string[] | null
+          tcgdex_updated_at?: string | null
           created_at?: string
         }
       }

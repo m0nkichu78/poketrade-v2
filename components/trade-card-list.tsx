@@ -18,10 +18,11 @@ type CardWithId = {
     id: string
     name: string
     set_name: string
-    pack: string
+    set_id: string
     rarity: string | null
     card_number: string
     image_url: string
+    boosters: string[] | null
   }
 }
 
