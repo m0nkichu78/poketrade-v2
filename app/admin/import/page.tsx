@@ -62,21 +62,32 @@ export default function SyncPage() {
   }, [toast])
 
   // Charger le nombre de cartes en base par set
+  // Supabase limite à 1000 rows par défaut — on pagine pour tout récupérer
   const loadDbCounts = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from("cards")
-        .select("set_id")
-
-      if (error) throw error
-
       const counts: Record<string, number> = {}
-      for (const row of data || []) {
-        const setId = row.set_id
-        if (setId) {
-          counts[setId] = (counts[setId] || 0) + 1
+      const PAGE_SIZE = 1000
+      let from = 0
+      let hasMore = true
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("cards")
+          .select("set_id")
+          .range(from, from + PAGE_SIZE - 1)
+
+        if (error) throw error
+
+        for (const row of data || []) {
+          if (row.set_id) {
+            counts[row.set_id] = (counts[row.set_id] || 0) + 1
+          }
         }
+
+        hasMore = (data?.length ?? 0) === PAGE_SIZE
+        from += PAGE_SIZE
       }
+
       setDbCardCounts(counts)
     } catch (error) {
       console.error("Error loading DB counts:", error)
